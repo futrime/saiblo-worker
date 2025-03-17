@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, TypedDict
 
 import dacite
 import docker
+import docker.errors
 import docker.models.containers
 import docker.models.networks
 import requests
@@ -363,6 +364,11 @@ class MatchJudger(BaseMatchJudger):
 
         except Exception as exc:  # pylint: disable=broad-except
             logging.error("Match %s judging failed: (%s) %s", match_id, type(exc), exc)
+            host_log = ""
+            try:
+                host_log = game_host_container.logs(tail=256).decode("utf-8")
+            except docker.errors.APIError:
+                pass
 
             match_result = MatchResult(
                 match_id=match_id,
@@ -375,7 +381,9 @@ class MatchJudger(BaseMatchJudger):
                     )
                     for _ in range(len(agent_info_list))
                 ],
-                error_message=str(exc),
+                error_message=(
+                    str(exc) + "\nHost Log:\n" if host_log != "" else "" + host_log
+                ),
                 replay_file_path=None,
                 stderr_output=(
                     game_host_container.logs(stdout=False).decode("utf-8")
